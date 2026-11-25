@@ -16,14 +16,20 @@
 //                                      "extended" keys: their code (75 72 6B 74) comes after an E0 byte.
 //                                      The keypad 8 / 2 / 4 / 6 send the same codes WITHOUT E0, so
 //                                      keypad 2 is a digit 2 and never a down arrow.
+//   space_p   SPACE (game 3, reaction test)      bksp_p   BACKSPACE (game 5)
+//   digit_p   any digit 0-9 (top row or keypad), digit_val = which digit (game 5).
+//             Keys 1 / 2 / 3 give both one_p / two_p / three_p AND digit_p.
 // ============================================================================
 module keyboard_input (clock, resetn, PS2_CLK, PS2_DAT,
                        enter_p, r_p, one_p, two_p, three_p,
-                       up_p, down_p, left_p, right_p);
+                       up_p, down_p, left_p, right_p,
+                       space_p, bksp_p, digit_p, digit_val);
     input  clock, resetn;
     inout  PS2_CLK, PS2_DAT;
     output reg enter_p, r_p, one_p, two_p, three_p;
     output reg up_p, down_p, left_p, right_p;
+    output reg space_p, bksp_p, digit_p;
+    output reg [3:0] digit_val;
 
     wire [7:0] code;        // byte received from the keyboard
     wire       code_en;     // 1 for one clock when 'code' is new
@@ -41,7 +47,31 @@ module keyboard_input (clock, resetn, PS2_CLK, PS2_DAT,
               SC_1 = 8'h16,  SC_2 = 8'h1E,  SC_3 = 8'h26,        // top row
               SC_K1 = 8'h69, SC_K2 = 8'h72, SC_K3 = 8'h7A,       // keypad
               SC_UP = 8'h75, SC_DOWN = 8'h72, SC_LEFT = 8'h6B, SC_RIGHT = 8'h74,   // arrows (after E0)
-              SC_BREAK = 8'hF0, SC_EXT = 8'hE0;
+              SC_BREAK = 8'hF0, SC_EXT = 8'hE0,
+              SC_SPACE = 8'h29, SC_BKSP = 8'h66;
+
+    // digit keys: top row 0-9 and keypad 0-9 (keypad keys are NOT extended)
+    reg       is_digit;
+    reg [3:0] dval;
+    always @(*) begin
+        is_digit = 1'b1;
+        case (code)
+            8'h45, 8'h70: dval = 4'd0;
+            8'h16, 8'h69: dval = 4'd1;
+            8'h1E, 8'h72: dval = 4'd2;
+            8'h26, 8'h7A: dval = 4'd3;
+            8'h25, 8'h6B: dval = 4'd4;
+            8'h2E, 8'h73: dval = 4'd5;
+            8'h36, 8'h74: dval = 4'd6;
+            8'h3D, 8'h6C: dval = 4'd7;
+            8'h3E, 8'h75: dval = 4'd8;
+            8'h46, 8'h7D: dval = 4'd9;
+            default: begin
+                dval     = 4'd0;
+                is_digit = 1'b0;
+            end
+        endcase
+    end
 
     reg skip;               // 1 = the next code is a key release, ignore it
     reg ext;                // 1 = an E0 prefix came before this code (extended key)
@@ -57,8 +87,12 @@ module keyboard_input (clock, resetn, PS2_CLK, PS2_DAT,
         down_p  <= 1'b0;
         left_p  <= 1'b0;
         right_p <= 1'b0;
+        space_p <= 1'b0;
+        bksp_p  <= 1'b0;
+        digit_p <= 1'b0;
 
         if (!resetn) begin
+            digit_val <= 4'd0;
             skip <= 1'b0;
             ext  <= 1'b0;
         end else if (code_en) begin
@@ -76,6 +110,12 @@ module keyboard_input (clock, resetn, PS2_CLK, PS2_DAT,
                         if (code == SC_1 || code == SC_K1)    one_p   <= 1'b1;
                         if (code == SC_2 || code == SC_K2)    two_p   <= 1'b1;
                         if (code == SC_3 || code == SC_K3)    three_p <= 1'b1;
+                        if (code == SC_SPACE)                 space_p <= 1'b1;
+                        if (code == SC_BKSP)                  bksp_p  <= 1'b1;
+                        if (is_digit) begin
+                            digit_p   <= 1'b1;
+                            digit_val <= dval;
+                        end
                     end else begin                            // extended keys: the arrows
                         if (code == SC_UP)                    up_p    <= 1'b1;
                         if (code == SC_DOWN)                  down_p  <= 1'b1;

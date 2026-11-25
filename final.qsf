@@ -887,6 +887,10 @@ set_global_assignment -name VERILOG_FILE main_game_fsm.v
 set_global_assignment -name VERILOG_FILE key_pulse.v
 set_global_assignment -name VERILOG_FILE game1_binary.v
 set_global_assignment -name VERILOG_FILE game4_maze.v
+set_global_assignment -name VERILOG_FILE game2_memory.v
+set_global_assignment -name VERILOG_FILE game3_reaction.v
+set_global_assignment -name VERILOG_FILE game5_guess.v
+set_global_assignment -name VERILOG_FILE vga_games.v
 set_global_assignment -name VERILOG_FILE countdown_timer.v
 set_global_assignment -name VERILOG_FILE PS2_Controller/Altera_UP_PS2_Command_Out.v
 set_global_assignment -name VERILOG_FILE PS2_Controller/Altera_UP_PS2_Data_In.v

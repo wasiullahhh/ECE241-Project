@@ -10,13 +10,15 @@
 //   GAME 1: big "GAME 1:", small "CONVERT TO BINARY", and the decimal number (1-100) in big white.
 //   GAME 4: the maze (15 x 15 cells of 7x7 pixels, thin white walls), the cube (cyan) and the exit (green), with the
 //           small title "GAME 4: ESCAPE" above it.
-//   GAME 2, 3, 5, WIN, LOSE: big title; WIN and LOSE also show small "PRESS R TO RESTART".
+//   GAME 2, 3, 5: drawn by vga_games.v (memory digits, reaction bar, code guesser).
+//   WIN, LOSE: big title and small "PRESS R TO RESTART".
 // Needs the course files vga_adapter.v, vga_controller.v, vga_pll.v, vga_address_translator.v
-// and black_160_9.mif in the project.
+// and black_160_9.mif in the project, plus vga_games.v.
 // ============================================================================
 
 // screen: 0 = "HOME", 1..5 = "GAME 1".."GAME 5", 6 = "WIN", 7 = "LOSE"
 module vga_display (clock, resetn, screen, show_number, game_number, difficulty, maze_x, maze_y,
+                    g2_vis, g3_vis, g5_vis,
                     VGA_R, VGA_G, VGA_B, VGA_HS, VGA_VS, VGA_BLANK_N, VGA_SYNC_N, VGA_CLK);
     input        clock;            // 50 MHz
     input        resetn;
@@ -26,6 +28,9 @@ module vga_display (clock, resetn, screen, show_number, game_number, difficulty,
     input  [1:0] difficulty;       // 11 = EASY (3 min), 10 = MEDIUM (2 min), 01 / 00 = HARD (1 min)
     input  [3:0] maze_x;           // game 4: cube position (column 0-14)
     input  [3:0] maze_y;           // game 4: cube position (row 0-14)
+    input  [10:0] g2_vis;          // game 2 state for the screen (see vga_games.v)
+    input  [27:0] g3_vis;          // game 3 state
+    input  [22:0] g5_vis;          // game 5 state
     output [7:0] VGA_R, VGA_G, VGA_B;
     output       VGA_HS, VGA_VS, VGA_BLANK_N, VGA_SYNC_N, VGA_CLK;
 
@@ -35,6 +40,7 @@ module vga_display (clock, resetn, screen, show_number, game_number, difficulty,
     wire       vga_write;
 
     vga_screen SCR (clock, resetn, screen, show_number, game_number, difficulty, maze_x, maze_y,
+                    g2_vis, g3_vis, g5_vis,
                     vga_x, vga_y, vga_color, vga_write);
 
     vga_adapter VGA (.resetn(resetn), .clock(clock),
@@ -62,7 +68,8 @@ endmodule
 //   row 2  (big)   : the number (game 1) or the difficulty word (HOME)
 //   small lines    : the messages M_xxx below, picked by which row the scan is on
 // ============================================================================
-module vga_screen (clock, resetn, screen, show_num, num, diff, mx_cube, my_cube, x, y, color, write);
+module vga_screen (clock, resetn, screen, show_num, num, diff, mx_cube, my_cube,
+                   g2_vis, g3_vis, g5_vis, x, y, color, write);
     input        clock, resetn;
     input  [2:0] screen;
     input        show_num;
@@ -70,6 +77,9 @@ module vga_screen (clock, resetn, screen, show_num, num, diff, mx_cube, my_cube,
     input  [1:0] diff;
     input  [3:0] mx_cube;               // game 4: cube column
     input  [3:0] my_cube;               // game 4: cube row
+    input  [10:0] g2_vis;               // games 2, 3, 5: passed on to vga_games
+    input  [27:0] g3_vis;
+    input  [22:0] g5_vis;
     output reg [7:0] x;
     output reg [6:0] y;
     output reg [8:0] color;
@@ -106,6 +116,7 @@ module vga_screen (clock, resetn, screen, show_num, num, diff, mx_cube, my_cube,
     wire is_home = (screen == 3'd0);
     wire is_end  = (screen == 3'd6) || (screen == 3'd7);
     wire is_maze = (screen == 3'd4);
+    wire is_g235 = (screen == 3'd2) || (screen == 3'd3) || (screen == 3'd5);   // drawn by vga_games
     wire is_easy    = (diff == 2'b11);
     wire is_med  = (diff == 2'b10);
 
@@ -288,11 +299,16 @@ module vga_screen (clock, resetn, screen, show_num, num, diff, mx_cube, my_cube,
                         m_exit ? 9'b000_111_000 :                // exit: green
                                  bg;
 
+    // ---- games 2, 3 and 5: the whole screen comes from vga_games.v ----
+    wire [8:0] gcolor;
+    vga_games GV (sx, sy, screen, g2_vis, g3_vis, g5_vis, gcolor);
+
     // ---- register the pixel before sending it to the adapter ----
     always @(posedge clock) begin
         x     <= sx;
         y     <= sy;
-        color <= m_in ? mcolor : (on ? fg : (son ? scolor : (non ? ncolor : bg)));
+        color <= is_g235 ? gcolor :
+                 (m_in ? mcolor : (on ? fg : (son ? scolor : (non ? ncolor : bg))));
         write <= resetn;
     end
 
